@@ -1,7 +1,8 @@
 {
-  "upPoolProxy": "0xE9728Ed5E1FD05665C44a17082d77049801435f0",
-  "commonPoolProxy": "0x0FAF09eD08D2Ec65982088f12E3Bab7e7Cb2945f",
-  "startBlock": 48178750,
-  "startTimestamp": 1696118400,
+  "startBlock": 48437970,
+  "startTimestamp": 1696688401,
+  "startUpIncome": "{\"1\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0xaae600\"},\"matic\":0},\"2\":{\"usdc\":0,\"matic\":0},\"3\":{\"usdc\":0,\"matic\":0},\"4\":{\"usdc\":0,\"matic\":0},\"5\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0xaae600\"},\"matic\":0},\"6\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0x802c80\"},\"matic\":0},\"7\":{\"usdc\":0,\"matic\":0},\"8\":{\"usdc\":0,\"matic\":0},\"9\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0x012b1280\"},\"matic\":{\"type\":\"BigNumber\",\"hex\":\"0x441a8423207f246a\"}},\"10\":{\"usdc\":0,\"matic\":0},\"11\":{\"usdc\":0,\"matic\":0},\"12\":{\"usdc\":0,\"matic\":0},\"13\":{\"usdc\":0,\"matic\":0},\"14\":{\"usdc\":0,\"matic\":0},\"15\":{\"usdc\":0,\"matic\":0},\"16\":{\"usdc\":0,\"matic\":0},\"17\":{\"usdc\":0,\"matic\":0},\"18\":{\"usdc\":0,\"matic\":0},\"19\":{\"usdc\":0,\"matic\":0},\"20\":{\"usdc\":0,\"matic\":0},\"21\":{\"usdc\":0,\"matic\":0}}",
+  "startCommonIncome": "{\"1\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0x017a6b00\"},\"matic\":0},\"2\":{\"usdc\":0,\"matic\":0},\"3\":{\"usdc\":0,\"matic\":0},\"4\":{\"usdc\":0,\"matic\":0},\"5\":{\"usdc\":0,\"matic\":0},\"6\":{\"usdc\":0,\"matic\":0},\"7\":{\"usdc\":0,\"matic\":0},\"8\":{\"usdc\":0,\"matic\":0},\"9\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0x01a52480\"},\"matic\":0},\"10\":{\"usdc\":0,\"matic\":0},\"11\":{\"usdc\":0,\"matic\":0},\"12\":{\"usdc\":0,\"matic\":0},\"13\":{\"usdc\":0,\"matic\":0},\"14\":{\"usdc\":0,\"matic\":0},\"15\":{\"usdc\":0,\"matic\":0},\"16\":{\"usdc\":0,\"matic\":0},\"17\":{\"usdc\":0,\"matic\":0},\"18\":{\"usdc\":0,\"matic\":0},\"19\":{\"usdc\":{\"type\":\"BigNumber\",\"hex\":\"0x2ab980\"},\"matic\":0},\"20\":{\"usdc\":0,\"matic\":0},\"21\":{\"usdc\":0,\"matic\":0}}",
+  "startBatch": 45,
   "intervalHours": 24
 }

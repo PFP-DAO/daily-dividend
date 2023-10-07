@@ -7,39 +7,21 @@ import { Contract } from "@ethersproject/contracts";
 import { BigNumber } from "@ethersproject/bignumber";
 import { formatUnits } from "@ethersproject/units";
 import { poolABI } from "./poolABI";
-
-const MAX_RANGE = 3000; // limit range of events to comply with rpc providers
-const MAX_REQUESTS = 20; // limit number of requests on every execution to avoid hitting timeout
-
-const generateEmptyIncome = () => {
-  const emptyIncome: { [key: number]: { usdc: number; matic: number } } = {};
-  for (let i = 1; i <= 21; i++) {
-    emptyIncome[i] = { usdc: 0, matic: 0 };
-  }
-  return emptyIncome;
-};
-
-const EMPTY_INCOME = generateEmptyIncome();
-
-const range = (start: number, end: number) => {
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-};
-const upRoleIds = range(9, 21);
-const commonRoleIds = range(1, 8);
-
-const decimalPlaces = {
-  usdc: 6,
-  matic: 18,
-};
-
-const deepCopy = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
-
-interface IIncome {
-  [roleId: number]: {
-    usdc: BigNumber;
-    matic: BigNumber;
-  };
-}
+import { dividendABI } from "./dividendABI";
+import {
+  EMPTY_INCOME,
+  IIncome,
+  MAX_RANGE,
+  MAX_REQUESTS,
+  commonPoolProxyAddress,
+  commonRoleIds,
+  decimalPlaces,
+  deepCopy,
+  dividendProxyAddress,
+  roleIds,
+  upPoolProxyAddress,
+  upRoleIds,
+} from "./utils";
 
 Web3Function.onRun(async (context: Web3FunctionContext) => {
   const { userArgs, storage, multiChainProvider } = context;
@@ -47,14 +29,27 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
   const provider = multiChainProvider.default();
 
-  const upPoolProxyAddress = userArgs.upPoolProxy as string;
-  const commonPoolProxyAddress = userArgs.commonPoolProxy as string;
   const upPoolProxy = new Contract(upPoolProxyAddress, poolABI, provider);
   const commonPoolProxy = new Contract(
     commonPoolProxyAddress,
     poolABI,
     provider
   );
+  const dividendProxy = new Contract(
+    dividendProxyAddress,
+    dividendABI,
+    provider
+  );
+
+  const batch: BigNumber = await dividendProxy.batch();
+  const storageBatch = parseInt(
+    (await storage.get("batch")) ?? userArgs.startBatch.toString()
+  );
+
+  if (batch.toNumber() !== storageBatch) {
+    console.log("batch not same, set new batch");
+    await storage.set("batch", batch.toNumber().toString());
+  }
 
   const getLatestPrice = async () => {
     try {
@@ -74,26 +69,37 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
   const lastExec = parseInt(
     (await storage.get("lastExec")) ?? userArgs.startTimestamp.toString()
-  ); // last execution timestamp
-  console.log("lastExec", lastExec);
+  );
 
   const lastBlockQuery = parseInt(
     (await storage.get("lastBlock")) ?? userArgs.startBlock.toString()
   );
-  console.log("lastBlockQuery", lastBlockQuery);
 
   const storedUpIncome = await storage.get("upIncome");
-
-  const parsedUpIncome: IIncome = storedUpIncome
-    ? JSON.parse(storedUpIncome)
-    : EMPTY_INCOME;
-  const upIncome: IIncome = deepCopy(parsedUpIncome);
-
   const storedCommonIncome = await storage.get("commonIncome");
-  const parsedCommonIncome: IIncome = storedCommonIncome
-    ? JSON.parse(storedCommonIncome)
-    : EMPTY_INCOME;
 
+  // const parsedUpIncome: IIncome = storedUpIncome
+  //   ? JSON.parse(storedUpIncome)
+  //   : EMPTY_INCOME;
+
+  // const parsedCommonIncome: IIncome = storedCommonIncome
+  //   ? JSON.parse(storedCommonIncome)
+  //   : EMPTY_INCOME;
+
+  let parsedUpIncome;
+  let parsedCommonIncome;
+
+  if (!storedUpIncome || !storedCommonIncome) {
+    parsedUpIncome = JSON.parse(userArgs.startUpIncome as string);
+    parsedCommonIncome = JSON.parse(userArgs.startCommonIncome as string);
+    await storage.set("upIncome", JSON.stringify(parsedUpIncome));
+    await storage.set("commonIncome", JSON.stringify(parsedCommonIncome));
+  } else {
+    parsedUpIncome = JSON.parse(storedUpIncome);
+    parsedCommonIncome = JSON.parse(storedCommonIncome);
+  }
+
+  const upIncome: IIncome = deepCopy(parsedUpIncome);
   const commonIncome: IIncome = deepCopy(parsedCommonIncome);
 
   let lastBlock = lastBlockQuery;
@@ -178,6 +184,55 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   await storage.set("lastBlock", lastBlock.toString());
 
   if (
+    storageBatch == batch.toNumber() &&
+    new Date(lastExec * 1000).getUTCDate() <
+      new Date(normalTimestamp * 1000).getUTCDate()
+  ) {
+    console.log("tx send but not minted, retry");
+    const storeUpRoleIdPoolCall = await storage.get("lastUpPoolToday");
+    const storeCommonRoleIdPoolCall = await storage.get("lastcommonPoolToday");
+    if (
+      storeUpRoleIdPoolCall == undefined ||
+      storeCommonRoleIdPoolCall == undefined
+    ) {
+      return {
+        canExec: false,
+        message: `No storage exec data to retry at ${currentBlock}`,
+      };
+    }
+
+    const upRoleIdPoolCall = storeUpRoleIdPoolCall
+      .split(",")
+      .map((v) => parseInt(v));
+
+    const commonRoleIdPoolCall = storeCommonRoleIdPoolCall
+      .split(",")
+      .map((v) => parseInt(v));
+
+    await storage.set("lastExec", normalTimestamp.toString());
+    await storage.set("upIncome", JSON.stringify(EMPTY_INCOME));
+    await storage.set("commonIncome", JSON.stringify(EMPTY_INCOME));
+
+    return {
+      canExec: true,
+      callData: [
+        {
+          to: upPoolProxyAddress,
+          data: upPoolProxy.interface.encodeFunctionData("dailyDivide", [
+            upRoleIds,
+            upRoleIdPoolCall,
+          ]),
+        },
+        {
+          to: commonPoolProxyAddress,
+          data: commonPoolProxy.interface.encodeFunctionData("dailyDivide", [
+            commonRoleIds,
+            commonRoleIdPoolCall,
+          ]),
+        },
+      ],
+    };
+  } else if (
     lastExec + 60 * 60 * interval <= normalTimestamp ||
     new Date(lastExec * 1000).getUTCDate() <
       new Date(normalTimestamp * 1000).getUTCDate()
@@ -191,7 +246,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
     const rateBigNumber = BigNumber.from(rate);
 
     if (rate) {
-      const upRoleIdPoolBalanceToday = upRoleIds.map((roleId) => {
+      const upRoleIdPoolBalanceToday = roleIds.map((roleId) => {
         const usdc = BigNumber.from(upIncome[roleId].usdc);
         const matic = BigNumber.from(upIncome[roleId].matic);
 
@@ -203,7 +258,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
         return usdc.add(maticToUsdc).div(2).toNumber();
       });
 
-      const commonRoleIdPoolBalanceToday = commonRoleIds.map((roleId) => {
+      const commonRoleIdPoolBalanceToday = roleIds.map((roleId) => {
         const usdc = BigNumber.from(commonIncome[roleId].usdc);
         const matic = BigNumber.from(commonIncome[roleId].matic);
 
@@ -215,6 +270,22 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
         return usdc.add(maticToUsdc).div(2).toNumber();
       });
 
+      const totalRoleIdPoolBalanceToday: number[] = [];
+      for (let i = 0; i < roleIds.length; i++) {
+        const totalBalance =
+          commonRoleIdPoolBalanceToday[i] + upRoleIdPoolBalanceToday[i];
+        totalRoleIdPoolBalanceToday.push(totalBalance);
+      }
+      const upPoolCallIncome = totalRoleIdPoolBalanceToday.slice(
+        upRoleIds[0] - 1
+      );
+      const commonPoolCallIncome = totalRoleIdPoolBalanceToday.slice(
+        commonRoleIds[0] - 1,
+        upRoleIds[0] - 1
+      );
+
+      await storage.set("lastUpPoolToday", upPoolCallIncome.toString());
+      await storage.set("lastcommonPoolToday", commonPoolCallIncome.toString());
       await storage.set("lastExec", normalTimestamp.toString());
       await storage.set("upIncome", JSON.stringify(EMPTY_INCOME));
       await storage.set("commonIncome", JSON.stringify(EMPTY_INCOME));
@@ -226,14 +297,14 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
             to: upPoolProxyAddress,
             data: upPoolProxy.interface.encodeFunctionData("dailyDivide", [
               upRoleIds,
-              upRoleIdPoolBalanceToday,
+              upPoolCallIncome,
             ]),
           },
           {
             to: commonPoolProxyAddress,
             data: commonPoolProxy.interface.encodeFunctionData("dailyDivide", [
               commonRoleIds,
-              commonRoleIdPoolBalanceToday,
+              commonPoolCallIncome,
             ]),
           },
         ],
@@ -266,18 +337,16 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
           const combinedValue = upIncomeValue.add(commonIncomeValue);
 
-          const storedValue = combinedValue.isZero() ? 0 : combinedValue;
-
           return {
             ...entryAcc,
-            [currency]: storedValue,
+            [currency]: combinedValue,
           };
         },
         {}
       );
 
-      const allValuesZero = Object.values(combinedEntry).every(
-        (value) => value === 0
+      const allValuesZero = Object.values(combinedEntry).every((value) =>
+        (value as BigNumber).isZero()
       );
 
       if (allValuesZero) {
@@ -318,7 +387,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
       message:
         upPoolUpdated || commonPoolUpdated
           ? `income: ${JSON.stringify(readableIncome)}`
-          : `No dividend at block ${currentBlock}(${normalTimestamp})`,
+          : `No dividend from block ${lastBlockQuery + 1} to ${lastBlock}`,
     };
   }
 });

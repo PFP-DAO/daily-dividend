@@ -13,7 +13,8 @@
     "create-task:oracle": "ts-node scripts/create-task-oracle.ts",
     "create-task:secrets": "ts-node scripts/create-task-with-secrets.ts",
     "create-task:ad-board": "ts-node scripts/create-task-ad-board.ts",
-    "forkAnvil": "ts-node scripts/forkAnvil.ts"
+    "forkAnvil": "ts-node scripts/forkAnvil.ts",
+    "compute": "npx ts-node ./web3-functions/dividend/compute.ts"
   },
   "keywords": [],
   "author": "",

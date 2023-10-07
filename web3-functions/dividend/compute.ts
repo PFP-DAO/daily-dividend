@@ -1,40 +1,20 @@
 import { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { Contract } from "@ethersproject/contracts";
 import { BigNumber } from "@ethersproject/bignumber";
-import { formatUnits } from "@ethersproject/units";
 import { poolABI } from "./poolABI";
+import {
+  upPoolProxyAddress,
+  commonPoolProxyAddress,
+  EMPTY_INCOME,
+  MAX_RANGE,
+  MAX_REQUESTS,
+  IIncome,
+  deepCopy,
+  roleIds,
+} from "./utils";
 
-const MAX_RANGE = 3000; // limit range of events to comply with rpc providers
-const MAX_REQUESTS = 20; // limit number of requests on every execution to avoid hitting timeout
-const generateEmptyIncome = () => {
-  const emptyIncome: { [key: number]: { usdc: number; matic: number } } = {};
-  for (let i = 1; i <= 21; i++) {
-    emptyIncome[i] = { usdc: 0, matic: 0 };
-  }
-  return emptyIncome;
-};
-
-const EMPTY_INCOME = generateEmptyIncome();
-
-const range = (start: number, end: number) => {
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-};
-const upRoleIds = range(9, 21);
-const commonRoleIds = range(1, 8);
-
-const deepCopy = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
-
-interface IIncome {
-  [roleId: number]: {
-    usdc: BigNumber;
-    matic: BigNumber;
-  };
-}
-
-const startBlock = 47352057; // 2023-09-10 00:00:00 UTC
-const upPoolProxyAddress = "0xE9728Ed5E1FD05665C44a17082d77049801435f0";
-const commonPoolProxyAddress = "0x0FAF09eD08D2Ec65982088f12E3Bab7e7Cb2945f";
-const provider = new JsonRpcProvider("https://rpc.ankr.com/polygon");
+const startBlock = 48414650; // 2023-10-07 00:00:00 UTC
+const provider = new JsonRpcProvider("https://polygon-rpc.com");
 
 async function main() {
   const upPoolProxy = new Contract(upPoolProxyAddress, poolABI, provider);
@@ -149,8 +129,8 @@ async function main() {
   }
 
   console.log("lastBlock", lastBlock);
-  console.log("upIncome", upIncome);
-  console.log("commonIncome", commonIncome);
+  console.log("upIncome", JSON.stringify(upIncome));
+  console.log("commonIncome", JSON.stringify(commonIncome));
 
   const rate = await getLatestPrice();
 
@@ -161,7 +141,7 @@ async function main() {
   const rateBigNumber = BigNumber.from(rate);
 
   if (rate) {
-    const upRoleIdPoolBalanceToday = upRoleIds.map((roleId) => {
+    const upRoleIdPoolBalanceToday = roleIds.map((roleId) => {
       const usdc = BigNumber.from(upIncome[roleId].usdc);
       const matic = BigNumber.from(upIncome[roleId].matic);
 
@@ -173,7 +153,7 @@ async function main() {
       return usdc.add(maticToUsdc).div(2).toNumber();
     });
 
-    const commonRoleIdPoolBalanceToday = commonRoleIds.map((roleId) => {
+    const commonRoleIdPoolBalanceToday = roleIds.map((roleId) => {
       const usdc = BigNumber.from(commonIncome[roleId].usdc);
       const matic = BigNumber.from(commonIncome[roleId].matic);
 
@@ -185,8 +165,17 @@ async function main() {
       return usdc.add(maticToUsdc).div(2).toNumber();
     });
 
-    console.log("upRoleIdPoolBalanceToday", upRoleIdPoolBalanceToday);
-    console.log("commonRoleIdPoolBalanceToday", commonRoleIdPoolBalanceToday);
+    const totalRoleIdPoolBalanceToday: number[] = [];
+    for (let i = 0; i < roleIds.length; i++) {
+      const totalBalance =
+        commonRoleIdPoolBalanceToday[i] + upRoleIdPoolBalanceToday[i];
+      totalRoleIdPoolBalanceToday.push(totalBalance);
+    }
+    const upPoolCallIncome = totalRoleIdPoolBalanceToday.slice(8);
+    const commonPoolCallIncome = totalRoleIdPoolBalanceToday.slice(0, 8);
+
+    console.log("upPoolCallIncome", JSON.stringify(upPoolCallIncome));
+    console.log("commonPoolCallIncome", JSON.stringify(commonPoolCallIncome));
   }
 }
 
