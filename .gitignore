@@ -40,3 +40,4 @@ logs/
 
 # web3 functions builds
 .tmp
+.yarn
