@@ -46,11 +46,6 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
     (await storage.get("batch")) ?? userArgs.startBatch.toString()
   );
 
-  if (batch.toNumber() !== storageBatch) {
-    console.log("batch not same, set new batch");
-    await storage.set("batch", batch.toNumber().toString());
-  }
-
   const getLatestPrice = async () => {
     try {
       const rate = await upPoolProxy.getLatestPrice();
@@ -78,26 +73,13 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   const storedUpIncome = await storage.get("upIncome");
   const storedCommonIncome = await storage.get("commonIncome");
 
-  // const parsedUpIncome: IIncome = storedUpIncome
-  //   ? JSON.parse(storedUpIncome)
-  //   : EMPTY_INCOME;
+  const parsedUpIncome: IIncome = storedUpIncome
+    ? JSON.parse(storedUpIncome)
+    : EMPTY_INCOME;
 
-  // const parsedCommonIncome: IIncome = storedCommonIncome
-  //   ? JSON.parse(storedCommonIncome)
-  //   : EMPTY_INCOME;
-
-  let parsedUpIncome;
-  let parsedCommonIncome;
-
-  if (!storedUpIncome || !storedCommonIncome) {
-    parsedUpIncome = JSON.parse(userArgs.startUpIncome as string);
-    parsedCommonIncome = JSON.parse(userArgs.startCommonIncome as string);
-    await storage.set("upIncome", JSON.stringify(parsedUpIncome));
-    await storage.set("commonIncome", JSON.stringify(parsedCommonIncome));
-  } else {
-    parsedUpIncome = JSON.parse(storedUpIncome);
-    parsedCommonIncome = JSON.parse(storedCommonIncome);
-  }
+  const parsedCommonIncome: IIncome = storedCommonIncome
+    ? JSON.parse(storedCommonIncome)
+    : EMPTY_INCOME;
 
   const upIncome: IIncome = deepCopy(parsedUpIncome);
   const commonIncome: IIncome = deepCopy(parsedCommonIncome);
@@ -182,12 +164,8 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   }
 
   await storage.set("lastBlock", lastBlock.toString());
-
-  if (
-    storageBatch == batch.toNumber() &&
-    new Date(lastExec * 1000).getUTCDate() <
-      new Date(normalTimestamp * 1000).getUTCDate()
-  ) {
+  if (storageBatch == batch.toNumber() + 1) {
+    // tx may not mined, retry
     console.log("tx send but not minted, retry");
     const storeUpRoleIdPoolCall = await storage.get("lastUpPoolToday");
     const storeCommonRoleIdPoolCall = await storage.get("lastcommonPoolToday");
@@ -289,6 +267,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
       await storage.set("lastExec", normalTimestamp.toString());
       await storage.set("upIncome", JSON.stringify(EMPTY_INCOME));
       await storage.set("commonIncome", JSON.stringify(EMPTY_INCOME));
+      await storage.set("batch", (batch.toNumber() + 1).toString());
 
       return {
         canExec: true,

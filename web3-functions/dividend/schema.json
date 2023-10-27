@@ -6,8 +6,6 @@
   "userArgs": {
     "startBlock": "number",
     "startTimestamp": "number",
-    "startUpIncome": "string",
-    "startCommonIncome": "string",
     "startBatch": "number",
     "intervalHours": "number"
   }

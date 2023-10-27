@@ -14,7 +14,7 @@ import {
 } from "./utils";
 
 const startBlock = 48414650; // 2023-10-07 00:00:00 UTC
-const provider = new JsonRpcProvider("https://polygon-rpc.com");
+const provider = new JsonRpcProvider(process.env.PROVIDER_URLS);
 
 async function main() {
   const upPoolProxy = new Contract(upPoolProxyAddress, poolABI, provider);
